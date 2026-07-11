@@ -3,8 +3,10 @@
 A [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoader) mod for [Resonite](https://resonite.com/) that completely disables renderer decoupling in Desktop mode.
 
 > [!IMPORTANT]
-> If you like using this mod, be sure to thumbs-up the relevant entries in Resonite's issue tracker!
+> If you like using this mod, be sure to thumbs-up the relevant entries in Resonite's issue tracker:
+>
 > [**#5523** - Option to disable renderer decoupling in desktop mode.](https://github.com/Yellow-Dog-Man/Resonite-Issues/issues/5523)
+>
 > [**#5497** - Mouse sensitivity decreases when renderer is decoupled](https://github.com/Yellow-Dog-Man/Resonite-Issues/issues/5497)
 
 
