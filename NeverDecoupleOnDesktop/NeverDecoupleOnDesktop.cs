@@ -25,14 +25,22 @@ public class NeverDecoupleOnDesktop : ResoniteMod {
 		Harmony harmony = new("dog.glacier.NeverDecoupleOnDesktop");
 		harmony.PatchAll();
 
+		Config.OnThisConfigurationChanged += OnModConfigChanged;
+
 		Engine.Current.RunPostInit(() => {
+			Msg($"Hooking to relevant events");
 			Engine.Current.InputInterface.VRActiveChanged += VRActiveChanged;
-			VRActiveChanged(Engine.Current.InputInterface.VR_Active);
 		});
 	}
+
+	private static void OnModConfigChanged(ConfigurationChangedEvent configurationChangedEvent) {
+		Msg($"Mod config changed, rerunning VRActiveChanged.");
+		VRActiveChanged(Engine.Current.InputInterface.VR_Active);
+	}
+
 	private static void VRActiveChanged(bool active) {
 		RenderDecouplingConfig config = new RenderDecouplingConfig();
-		if (Engine.Current.RenderSystem != null) {
+		if (Engine.Current.RenderSystem != null && Userspace.UserspaceWorld != null) {
 			RendererDecouplingSettings? currentSettings = Settings.GetActiveSetting<RendererDecouplingSettings>();
 			bool ShouldApplyDesktopSettings = !active && Config!.GetValue(Enabled);
 			Msg($"VRActiveChanged fired. Apply Desktop Settings: {ShouldApplyDesktopSettings}.");
@@ -40,14 +48,18 @@ public class NeverDecoupleOnDesktop : ResoniteMod {
 			config.decoupleActivateInterval = ShouldApplyDesktopSettings ? float.PositiveInfinity : 1f / MathX.Max(0f, currentSettings?.ActivationFramerate.Value ?? 15f);
 			config.recoupleFrameCount = ShouldApplyDesktopSettings ? 1 : (currentSettings?.DeactivationFrames.Value ?? 60);
 			config.decoupledMaxAssetProcessingTime = (float)(currentSettings?.AssetProcessingMaxTimeMilliseconds.Value ?? 8f) * 0.001f;
-			Engine.Current.RenderSystem._messagingHost.SendCommand(config, isBackground: true);
+			Userspace.UserspaceWorld.RunSynchronously(() => {
+				Engine.Current.RenderSystem._messagingHost.SendCommand(config, isBackground: true);
+			});
+		} else {
+			Warn($"VRActiveChanged fired, but missing: {(Engine.Current.RenderSystem != null ? "" : "RenderSystem")} ... {(Userspace.UserspaceWorld != null ? "" : "Userspace")}!");
 		}
 	}
 
 	[HarmonyPatch(typeof(RenderSystem), "OnDecouplingSettingsChanged")]
 	class RenderSystem_OnDecouplingSettingsChanged_Patch {
 		static bool Prefix(RenderSystem __instance, RendererDecouplingSettings settings, ref RenderiteMessagingHost ____messagingHost) {
-			if (Config!.GetValue(Enabled) && __instance != null && !__instance.Engine.WorldManager.FocusedWorld.LocalUser.VR_Active) {
+			if (Config!.GetValue(Enabled) && __instance != null && !__instance.Engine.InputInterface.VR_Active) {
 				Msg($"Intercepted decoupling settings change event");
 				RenderDecouplingConfig config = new RenderDecouplingConfig();
 				config.decoupleActivateInterval = float.PositiveInfinity;
@@ -57,6 +69,16 @@ public class NeverDecoupleOnDesktop : ResoniteMod {
 				return false;
 			}
 			return true;
+		}
+	}
+
+	[HarmonyPatch(typeof(Userspace), "SetupUserspace")]
+	class Userspace_SetupUserspace_Patch {
+		static void Postfix(World __result) {
+			__result.RunInUpdates(5, () => {
+				Msg($"Init NeverDecoupleOnDesktop! VR active: {Engine.Current.InputInterface.VR_Active}");
+				VRActiveChanged(Engine.Current.InputInterface.VR_Active);
+			});
 		}
 	}
 }
